@@ -1,0 +1,40 @@
+# Xcode
+#
+## User-specific files
+*.xcuserdatad
+*.xcworkspace/contents.xcworkspacedata
+*.xcschememanagement.plist
+
+## Build generated
+build/
+DerivedData/
+*.app
+*.ipa
+
+## Various settings
+xcuserdata/
+*.xccheckout
+
+# Swift Package Manager
+#
+.build/
+Packages/
+*.xcworkspace
+*~.xccheckout
+/.swiftpm
+
+# CocoaPods
+#
+Pods/
+*.lock
+
+# Carthage
+#
+Carthage/
+
+# General
+#
+.DS_Store
+*.swp
+*~
+*.orig
