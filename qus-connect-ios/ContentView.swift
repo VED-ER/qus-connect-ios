@@ -7,55 +7,50 @@
 
 import SwiftUI
 import SwiftData
+import CoreBluetooth
 
 struct ContentView: View {
-    @Environment(\.modelContext) private var modelContext
-    @Query private var items: [Item]
+    @StateObject private var bleManager = BLEManager()
 
-    var body: some View {
-        NavigationSplitView {
-            List {
-                ForEach(items) { item in
-                    NavigationLink {
-                        Text("Item at \(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))")
-                    } label: {
-                        Text(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))
+        var body: some View {
+            NavigationView {
+                VStack {
+                    if let connectedPeripheral = bleManager.connectedPeripheral {
+                        DeviceDetailView(
+                            peripheralUUID: connectedPeripheral.identifier.uuidString,
+                            disconnectAction: {
+                                bleManager.disconnect()
+                            }
+                        )
+                    } else {
+                        List(bleManager.peripherals) { peripheral in
+                            Button(action: {
+                                bleManager.connect(to: peripheral)
+                            }) {
+                                HStack {
+                                    Text(peripheral.id.uuidString).lineLimit(1)
+                                    Spacer()
+                                    Image(systemName: "chevron.right")
+                                        .foregroundColor(.gray)
+                                }
+                            }
+                            .foregroundColor(.primary)
+                        }
+                        .navigationTitle("BLE Devices")
                     }
                 }
-                .onDelete(perform: deleteItems)
-            }
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    EditButton()
-                }
-                ToolbarItem {
-                    Button(action: addItem) {
-                        Label("Add Item", systemImage: "plus")
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Button("Scan") {
+                            bleManager.startScanning()
+                        }
+                        .disabled(!bleManager.isBluetoothOn)
                     }
                 }
             }
-        } detail: {
-            Text("Select an item")
         }
-    }
-
-    private func addItem() {
-        withAnimation {
-            let newItem = Item(timestamp: Date())
-            modelContext.insert(newItem)
-        }
-    }
-
-    private func deleteItems(offsets: IndexSet) {
-        withAnimation {
-            for index in offsets {
-                modelContext.delete(items[index])
-            }
-        }
-    }
 }
 
 #Preview {
     ContentView()
-        .modelContainer(for: Item.self, inMemory: true)
 }
