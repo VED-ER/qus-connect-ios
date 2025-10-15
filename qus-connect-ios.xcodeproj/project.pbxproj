@@ -6,8 +6,13 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		0B75DD202EA0517F00EAEDA5 /* .gitignore in Resources */ = {isa = PBXBuildFile; fileRef = 0B75DD1E2EA0517800EAEDA5 /* .gitignore */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		0B75DD082EA04B6300EAEDA5 /* qus-connect-ios.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "qus-connect-ios.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		0B75DD1E2EA0517800EAEDA5 /* .gitignore */ = {isa = PBXFileReference; lastKnownFileType = text; path = .gitignore; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -34,6 +39,7 @@
 			children = (
 				0B75DD0A2EA04B6300EAEDA5 /* qus-connect-ios */,
 				0B75DD092EA04B6300EAEDA5 /* Products */,
+				0B75DD1E2EA0517800EAEDA5 /* .gitignore */,
 			);
 			sourceTree = "<group>";
 		};
@@ -109,6 +115,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				0B75DD202EA0517F00EAEDA5 /* .gitignore in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
