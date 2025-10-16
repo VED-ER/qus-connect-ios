@@ -15,7 +15,7 @@ struct ContentView: View {
         var body: some View {
             NavigationView {
                 VStack {
-                    if let connectedPeripheral = bleManager.connectedPeripheral {
+                    if let connectedPeripheral = bleManager.connectedDevice {
                         DeviceDetailView(
                             peripheralUUID: connectedPeripheral.identifier.uuidString,
                             disconnectAction: {
@@ -23,12 +23,15 @@ struct ContentView: View {
                             }
                         )
                     } else {
-                        List(bleManager.peripherals) { peripheral in
+                        List(bleManager.devices) { device in
                             Button(action: {
-                                bleManager.connect(to: peripheral)
+                                bleManager.connect(to: device)
                             }) {
                                 HStack {
-                                    Text(peripheral.id.uuidString).lineLimit(1)
+                                    VStack(alignment: .leading) {
+                                        Text(device.name)
+                                        Text(device.id.uuidString).lineLimit(1)
+                                    }
                                     Spacer()
                                     Image(systemName: "chevron.right")
                                         .foregroundColor(.gray)
