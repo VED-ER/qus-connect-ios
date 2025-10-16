@@ -9,18 +9,14 @@ import Foundation
 import CoreBluetooth
 import Combine
 
-struct Device: Identifiable {
-    let id: UUID
-    let name: String
-    let peripheral: CBPeripheral
-}
-
 class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeripheralDelegate {
     
     // MARK: - Published Properties
-    @Published var devices = [Device]()
+    @Published var scannedDevices = [CBPeripheral]()
     @Published var isBluetoothOn = false
     @Published var connectedDevice: CBPeripheral?
+    
+    @Published var isScanning = false
     @Published var isConnecting = false
     
     // MARK: - Private Properties
@@ -30,12 +26,14 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     override init() {
         super.init()
         // Initialize the central manager
+        // TODO: Check initialization options
         self.centralManager = CBCentralManager(delegate: self, queue: nil)
     }
     
     // MARK: - Scanning and Connection
     func startScanning() {
         print("Scanning started")
+        self.isScanning = true
         
         let services: [CBUUID] = [SensorType.OBU.SERVICE_HRM_SERVICE_ID, SensorType.CORE.SERVICE_TEMPERATURE_SERVICE_ID, SensorType.CORE.ALTERNATIVE_TEMPERATURE_TEMP_ID]
         
@@ -47,13 +45,15 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     
     func stopScanning() {
         print("Scanning stopped")
+        self.isScanning = false
         centralManager.stopScan()
     }
     
-    func connect(to device: Device) {
-        print("Connecting to \(device.name)")
+    func connect(to device: CBPeripheral) {
+        print("Connecting to \(device.name ?? device.identifier.uuidString)")
+        self.isConnecting = true
         centralManager.stopScan()
-        centralManager.connect(device.peripheral, options: nil)
+        centralManager.connect(device, options: nil)
     }
     
     func disconnect() {
@@ -74,15 +74,15 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     }
     
     func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral, advertisementData: [String: Any], rssi: NSNumber) {
-        guard let peripheralName = peripheral.name, !devices.contains(where: { $0.id == peripheral.identifier }) else { return }
-
-        let newPeripheral = Device(id: peripheral.identifier, name: peripheralName, peripheral: peripheral)
-        self.devices.append(newPeripheral)
-        print("Discovered \(peripheralName)")
+        guard !scannedDevices.contains(where: { $0.identifier == peripheral.identifier }) else { return }
+        
+        self.scannedDevices.append(peripheral)
+        print("Discovered \(peripheral.name ?? "Unnamed device")")
     }
     
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
         print("Connected to \(peripheral.name ?? "device")")
+        self.isConnecting = false
         self.connectedDevice = peripheral
         peripheral.delegate = self
         // Discover services
@@ -91,6 +91,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     
     func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error: Error?) {
         print("Failed to connect to \(peripheral.name ?? "device"). Error: \(error?.localizedDescription ?? "No error info")")
+        self.isConnecting = false
     }
     
     func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
@@ -116,4 +117,8 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     //    func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
     //
     //    }
+    
+    func getPeripheralByMacAddress(_ macAddress: String) -> CBPeripheral? {
+        return self.scannedDevices.first(where: { $0.identifier.uuidString == macAddress })
+    }
 }
