@@ -19,6 +19,8 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     @Published var isScanning = false
     @Published var isConnecting = false
     
+    private var scanTimer: Timer?
+    
     // MARK: - Private Properties
     private var centralManager: CBCentralManager!
     
@@ -35,6 +37,13 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         print("Scanning started")
         self.isScanning = true
         
+        scanTimer?.invalidate()
+        
+        scanTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: false) { [weak self] _ in
+            print("Scan timer finished.")
+            self?.stopScanning()
+        }
+        
         let services: [CBUUID] = [SensorType.OBU.SERVICE_HRM_SERVICE_ID, SensorType.CORE.SERVICE_TEMPERATURE_SERVICE_ID, SensorType.CORE.ALTERNATIVE_TEMPERATURE_TEMP_ID]
         
         centralManager.scanForPeripherals(withServices: services, options: [
@@ -46,13 +55,16 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     func stopScanning() {
         print("Scanning stopped")
         self.isScanning = false
+        scanTimer?.invalidate()
         centralManager.stopScan()
     }
     
     func connect(to device: CBPeripheral) {
         print("Connecting to \(device.name ?? device.identifier.uuidString)")
         self.isConnecting = true
-        centralManager.stopScan()
+        
+        self.stopScanning()
+        
         centralManager.connect(device, options: nil)
     }
     
