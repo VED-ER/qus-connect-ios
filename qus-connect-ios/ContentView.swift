@@ -9,42 +9,37 @@ import SwiftUI
 import SwiftData
 import CoreBluetooth
 
-struct Device: Identifiable {
-    let id: String
-    let name: String
-}
-
 struct ContentView: View {
     @StateObject private var bleManager = BLEManager()
     
-    private var parsedDevices: [Device] {
-        bleManager.scannedDevices.map { device in
-            Device(id: device.identifier.uuidString, name: device.name ?? "Unnamed")
-        }
+    private var connectedOBU: BluetoothDeviceWrapper? {
+        bleManager.connectedDevices.first(where: { $0.sensorType == .obu })
+    }
+    
+    private var connectedCORE: BluetoothDeviceWrapper? {
+        bleManager.connectedDevices.first(where: { $0.sensorType == .core })
     }
     
     var body: some View {
         NavigationView {
             VStack {
-                if let connectedPeripheral = bleManager.connectedDevice {
+                if let connectedOBU = connectedOBU {
                     DeviceDetailView(
-                        peripheralUUID: connectedPeripheral.identifier.uuidString,
+                        peripheralUUID: connectedOBU.peripheral.identifier.uuidString,
                         disconnectAction: {
-                            bleManager.disconnect()
+                            bleManager.disconnectFromDevice(device: connectedOBU)
                         }
                     )
                 } else {
-                    List(parsedDevices) { device in
+                    List(bleManager.scannedDevices, id: \.peripheral.identifier.uuidString) { device in
                         Button(action: {
-                            if let peripheralToConnect = bleManager.scannedDevices.first(where: { $0.identifier.uuidString == device.id }) {
-                                bleManager.connect(to: peripheralToConnect)
-                            }
+                            bleManager.connect(to: device)
                         }) {
                             HStack {
                                 VStack(alignment: .leading) {
-                                    Text(device.name)
+                                    Text(device.peripheral.name ?? "Unnamed device")
                                         .font(.headline)
-                                    Text(device.id)
+                                    Text(device.peripheral.identifier.uuidString)
                                         .font(.caption)
                                         .foregroundColor(.secondary)
                                         .lineLimit(1)

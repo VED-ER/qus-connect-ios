@@ -8,6 +8,30 @@
 import CoreBluetooth
 
 enum SensorType {
+    case obu
+    case core
+    case unknown
+    
+    init?(fromString string: String) {
+        switch string.uppercased() {
+        case "OBU":
+            self = .obu
+        case "CORE":
+            self = .core
+        default:
+            self = .unknown
+        }
+    }
+    
+    // Example usage:
+
+    // --- Success Case ---
+//    let obuString = "OBU"
+//    if let sensorType = SensorType(fromString: obuString) {
+//        print("Successfully created type: \(sensorType.name)") // Prints: "Successfully created type: OBU"
+//        // Now you can use the 'sensorType' variable
+//        // connect(to: myPeripheral, type: sensorType)
+//    }
     
     static let CCC_DESCRIPTOR_UUID = CBUUID(string: "00002902-0000-1000-8000-00805F9B34FB") // Client Characteristic Configuration Descriptor
 
@@ -90,5 +114,31 @@ enum SensorType {
         static func toString() -> String {
             return "UNKNOWN"
         }
+    }
+}
+
+// Utility function to determine SensorType from a scan result.
+func getSensorTypeFromDevice(for device: CBPeripheral, advertisementData: [String: Any]) -> SensorType {
+    
+    let deviceName = device.name
+    let serviceUUIDs = advertisementData[CBAdvertisementDataServiceUUIDsKey] as? [CBUUID]
+    
+    // First, check for the most reliable identifier: a specific service UUID
+    if (serviceUUIDs?.contains(SensorType.OBU.SERVICE_NUS_SERVICE_ID)) != nil {
+        return SensorType.obu
+    }
+    
+    if (serviceUUIDs?.contains(SensorType.CORE.SERVICE_TEMPERATURE_SERVICE_ID)) != nil {
+        return SensorType.core
+    }
+    
+    // Fallback to name-based logic if no service UUID matches
+    switch deviceName {
+    case let name? where name.hasPrefix("OBU"):
+        return .obu
+    case let name? where name.hasPrefix("CORE"):
+        return .core
+    default:
+        return .unknown
     }
 }

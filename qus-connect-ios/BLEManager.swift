@@ -12,23 +12,20 @@ import Combine
 class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeripheralDelegate {
     
     // MARK: - Published Properties
-    @Published var scannedDevices = [CBPeripheral]()
+    @Published var scannedDevices = [BluetoothDeviceWrapper]()
+    @Published var connectedDevices = [BluetoothDeviceWrapper]()
     @Published var isBluetoothOn = false
-    @Published var connectedDevice: CBPeripheral?
-    
     @Published var isScanning = false
-    @Published var isConnecting = false
     
     private var scanTimer: Timer?
     
-    // MARK: - Private Properties
     private var centralManager: CBCentralManager!
     
     // MARK: - Initialization
     override init() {
         super.init()
         // Initialize the central manager
-        // TODO: Check initialization options
+        // TODO: Check background queue option, check third options argument
         self.centralManager = CBCentralManager(delegate: self, queue: nil)
     }
     
@@ -59,19 +56,19 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         centralManager.stopScan()
     }
     
-    func connect(to device: CBPeripheral) {
-        print("Connecting to \(device.name ?? device.identifier.uuidString)")
-        self.isConnecting = true
-        
-        self.stopScanning()
-        
-        centralManager.connect(device, options: nil)
+    func connect(to device: BluetoothDeviceWrapper) {
+        if let scannedDevice = scannedDevices.first(where: { $0.peripheral.identifier == device.peripheral.identifier}){
+            print("Connecting to \(device.sensorType) \(device.peripheral.identifier.uuidString)")
+            self.stopScanning()
+            centralManager.connect(scannedDevice.peripheral, options: nil)
+        }
     }
     
-    func disconnect() {
-        guard let connectedDevice = connectedDevice else { return }
-        print("Disconnecting from \(connectedDevice.name ?? "device")")
-        centralManager.cancelPeripheralConnection(connectedDevice)
+    func disconnectFromDevice(device: BluetoothDeviceWrapper) {
+        if let connectedDevice = connectedDevices.first(where: { $0.peripheral.identifier == device.peripheral.identifier}){
+            print("Disconnecting from \(device.peripheral.identifier.uuidString)")
+            centralManager.cancelPeripheralConnection(connectedDevice.peripheral)
+        }
     }
     
     // MARK: - CBCentralManagerDelegate Methods
@@ -86,29 +83,35 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     }
     
     func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral, advertisementData: [String: Any], rssi: NSNumber) {
-        guard !scannedDevices.contains(where: { $0.identifier == peripheral.identifier }) else { return }
-        
-        self.scannedDevices.append(peripheral)
+        guard !scannedDevices.contains(where: { $0.peripheral.identifier == peripheral.identifier }) else { return }
         print("Discovered \(peripheral.name ?? "Unnamed device")")
+       
+        let scannedDeviceSensorType = getSensorTypeFromDevice(for: peripheral, advertisementData: advertisementData)
+        
+        print("Discovered sensor type \(scannedDeviceSensorType)")
+        
+        self.scannedDevices.append(BluetoothDeviceWrapper(peripheral: peripheral, sensorType: scannedDeviceSensorType, RSSI: rssi))
     }
     
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
-        print("Connected to \(peripheral.name ?? "device")")
-        self.isConnecting = false
-        self.connectedDevice = peripheral
+        print("Connected to \(peripheral.identifier.uuidString)")
+        
         peripheral.delegate = self
-        // Discover services
+        
+        let connectedDevice = scannedDevices.first(where: { $0.peripheral.identifier == peripheral.identifier })!
+        
+        connectedDevices.append(connectedDevice)
+        
         peripheral.discoverServices([])
     }
     
     func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error: Error?) {
         print("Failed to connect to \(peripheral.name ?? "device"). Error: \(error?.localizedDescription ?? "No error info")")
-        self.isConnecting = false
     }
     
     func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
-        print("Disconnected from \(peripheral.name ?? "device")")
-        self.connectedDevice = nil
+        print("Disconnected from \(peripheral.identifier.uuidString)")
+        connectedDevices = connectedDevices.filter { $0.peripheral.identifier != peripheral.identifier }
     }
     
     // MARK: - CBPeripheralDelegate Methods
@@ -122,15 +125,11 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     func peripheral(_ peripheral: CBPeripheral, didDiscoverCharacteristicsFor service: CBService, error: Error?) {
         guard let characteristics = service.characteristics else { return }
         for characteristic in characteristics {
-            print(characteristic)
+            print("Characteristic: \(characteristic)")
         }
     }
     
     //    func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
     //
     //    }
-    
-    func getPeripheralByMacAddress(_ macAddress: String) -> CBPeripheral? {
-        return self.scannedDevices.first(where: { $0.identifier.uuidString == macAddress })
-    }
 }
