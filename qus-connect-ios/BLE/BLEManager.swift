@@ -17,7 +17,17 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     @Published var isBluetoothOn = false
     @Published var isScanning = false
     
+    lazy var bleStorage = BLEStorage(stateChange: { [weak self] devices in
+        guard let self = self else { return }
+        
+        self.connectedDevices = devices.filter { $0.isConnected }
+        print("ConnectionStorage statChange: updated connected devices: \(self.connectedDevices.count)")
+        
+        self.scannedDevices = devices
+    })
+    
     private var scanTimer: Timer?
+    private let scanTimeout: TimeInterval = 5.0
     
     private var centralManager: CBCentralManager!
     
@@ -34,9 +44,12 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         print("Scanning started")
         self.isScanning = true
         
+        // reset scanned devices
+        bleStorage.clearScannedDevices()
+        
         scanTimer?.invalidate()
         
-        scanTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: false) { [weak self] _ in
+        scanTimer = Timer.scheduledTimer(withTimeInterval: scanTimeout, repeats: false) { [weak self] _ in
             print("Scan timer finished.")
             self?.stopScanning()
         }
@@ -86,11 +99,12 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         guard !scannedDevices.contains(where: { $0.peripheral.identifier == peripheral.identifier }) else { return }
         print("Discovered \(peripheral.name ?? "Unnamed device")")
        
-        let scannedDeviceSensorType = getSensorTypeFromDevice(for: peripheral, advertisementData: advertisementData)
+        let scannedDeviceSensorType = getSensorTypeFromScanResult(for: peripheral, advertisementData: advertisementData)
         
         print("Discovered sensor type \(scannedDeviceSensorType)")
         
-        self.scannedDevices.append(BluetoothDeviceWrapper(peripheral: peripheral, sensorType: scannedDeviceSensorType, RSSI: rssi))
+        let scannedDeviceWrapper = BluetoothDeviceWrapper(peripheral: peripheral, sensorType: scannedDeviceSensorType, RSSI: rssi)
+        bleStorage.addDevice(scannedDeviceWrapper)
     }
     
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
@@ -105,9 +119,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
             return
         }
         
-        if !connectedDevices.contains(where: { $0.peripheral.identifier == connectedDeviceWrapper.peripheral.identifier }) {
-            connectedDevices.append(connectedDeviceWrapper)
-        }
+        bleStorage.updateConnectedState(for: connectedDeviceWrapper.peripheral, isConnected: true)
         
         peripheral.discoverServices(nil)
     }
@@ -118,12 +130,14 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     
     func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
         print("Disconnected from \(peripheral.identifier.uuidString)")
-        connectedDevices = connectedDevices.filter { $0.peripheral.identifier != peripheral.identifier }
+        bleStorage.updateConnectedState(for: peripheral, isConnected: false)
     }
     
     // MARK: - CBPeripheralDelegate Methods
     func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
         guard let services = peripheral.services else { return }
+        
+        bleStorage.updateServices(services: services, for: peripheral)
         
         for service in services {
             print("Discovering characteristics for service: \(service.uuid.uuidString)")
@@ -135,22 +149,10 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         guard let characteristics = service.characteristics else { return }
         print("Discovered characteristics for service: \(service.uuid.uuidString)")
         
+        bleStorage.updateCharacteristics(service: service, characteristics: characteristics, for: peripheral)
+        
         // enable notifications after discovering characteristics
-        switch service.uuid {
-        case SensorType.OBU.SERVICE_NUS_SERVICE_ID:
-            guard let obuNusTxCharacteristic = characteristics.first(where: { $0.uuid == SensorType.OBU.SERVICE_NUS_TX_ID }) else {return}
-            print("Enabling notifications for OBU NUS TX characteristic")
-            peripheral.setNotifyValue(true, for: obuNusTxCharacteristic)
-        case SensorType.CORE.SERVICE_TEMPERATURE_SERVICE_ID:
-            guard let coreBodyTempNotificationCharacteristic = characteristics.first(where: { $0.uuid == SensorType.CORE.SERVICE_TEMPERATURE_TEMP_ID }) else { return }
-            print("Enabling notifications for CORE Body Temperature characteristic")
-            peripheral.setNotifyValue(true, for: coreBodyTempNotificationCharacteristic)
-            guard let coreBodyControlPointCharacteristic = characteristics.first(where: { $0.uuid == SensorType.CORE.SERVICE_TEMPERATURE_CONTROL_POINT_ID }) else { return }
-            print("Enabling notifications for control point as it does not accept writes without notification enabled!!!")
-            peripheral.setNotifyValue(true, for: coreBodyControlPointCharacteristic)
-        default:
-            return
-        }
+//        startDeviceNotifications(for: peripheral)
     }
     
     func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
@@ -158,4 +160,53 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         
         print("Received value for characteristic \(characteristic.uuid): \(data)")
     }
+    
+    func startDeviceNotifications(for device: CBPeripheral) {
+        guard let bluetoothDeviceWrapper = bleStorage.getDevice(for: device) else { return }
+        let allCharacteristics = bluetoothDeviceWrapper.serviceCharacteristics.values.flatMap { $0 }
+        
+        switch bluetoothDeviceWrapper.sensorType {
+        case .obu:
+            guard let obuNusTxCharacteristic = allCharacteristics.first(where: { $0.uuid == SensorType.OBU.SERVICE_NUS_TX_ID }) else { return }
+            print("Enabling notifications for OBU NUS TX characteristic")
+            device.setNotifyValue(true, for: obuNusTxCharacteristic)
+            
+        case .core:
+            guard let coreBodyTempNotificationCharacteristic = allCharacteristics.first(where: { $0.uuid == SensorType.CORE.SERVICE_TEMPERATURE_TEMP_ID }) else { return }
+            print("Enabling notifications for CORE Body Temperature characteristic")
+            device.setNotifyValue(true, for: coreBodyTempNotificationCharacteristic)
+            
+            guard let coreBodyControlPointCharacteristic = allCharacteristics.first(where: { $0.uuid == SensorType.CORE.SERVICE_TEMPERATURE_CONTROL_POINT_ID }) else { return }
+            print("Enabling notifications for control point as it does not accept writes without notification enabled!!!")
+            device.setNotifyValue(true, for: coreBodyControlPointCharacteristic)
+            
+        case .unknown:
+            print("startDeviceNotifications: unknown sensor type")
+        }
+    }
+    
+    func stopDeviceNotifications(for device: CBPeripheral) {
+        guard let bluetoothDeviceWrapper = bleStorage.getDevice(for: device) else { return }
+        let allCharacteristics = bluetoothDeviceWrapper.serviceCharacteristics.values.flatMap { $0 }
+        
+        switch bluetoothDeviceWrapper.sensorType {
+        case .obu:
+            guard let obuNusTxCharacteristic = allCharacteristics.first(where: { $0.uuid == SensorType.OBU.SERVICE_NUS_TX_ID }) else { return }
+            print("Disabling notifications for OBU NUS TX characteristic")
+            device.setNotifyValue(false, for: obuNusTxCharacteristic)
+            
+        case .core:
+            guard let coreBodyTempNotificationCharacteristic = allCharacteristics.first(where: { $0.uuid == SensorType.CORE.SERVICE_TEMPERATURE_TEMP_ID }) else { return }
+            print("Disabling notifications for CORE Body Temperature characteristic")
+            device.setNotifyValue(false, for: coreBodyTempNotificationCharacteristic)
+            
+            guard let coreBodyControlPointCharacteristic = allCharacteristics.first(where: { $0.uuid == SensorType.CORE.SERVICE_TEMPERATURE_CONTROL_POINT_ID }) else { return }
+            print("Disabling notifications for control point as it does not accept writes without notification enabled!!!")
+            device.setNotifyValue(false, for: coreBodyControlPointCharacteristic)
+            
+        case .unknown:
+            print("stopDeviceNotifications: unknown sensor type")
+        }
+    }
+    
 }

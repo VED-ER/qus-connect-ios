@@ -28,6 +28,12 @@ struct ContentView: View {
                         peripheralUUID: connectedOBU.peripheral.identifier.uuidString,
                         disconnectAction: {
                             bleManager.disconnectFromDevice(device: connectedOBU)
+                        },
+                        startTxNotifications: {
+                            bleManager.startDeviceNotifications(for: connectedOBU.peripheral)
+                        },
+                        stopTxNotifications: {
+                            bleManager.stopDeviceNotifications(for: connectedOBU.peripheral)
                         }
                     )
                 } else {

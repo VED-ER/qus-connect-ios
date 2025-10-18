@@ -118,7 +118,7 @@ enum SensorType {
 }
 
 // Utility function to determine SensorType from a scan result.
-func getSensorTypeFromDevice(for device: CBPeripheral, advertisementData: [String: Any]) -> SensorType {
+func getSensorTypeFromScanResult(for device: CBPeripheral, advertisementData: [String: Any]) -> SensorType {
     
     let deviceName = device.name
     let serviceUUIDs = advertisementData[CBAdvertisementDataServiceUUIDsKey] as? [CBUUID]

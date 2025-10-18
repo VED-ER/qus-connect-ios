@@ -8,73 +8,82 @@
 import CoreBluetooth
 
 // Used to manage the state of ble devices while the app is running.
-class BleStorage {
-    private var connections: [UUID: ConnectionWrapper] = [:]
-    private var stateChange: ([ConnectionWrapper]) -> Void
+class BLEStorage {
+    private var devices: [UUID: BluetoothDeviceWrapper] = [:] // holds both scanned and connected devices
+    private var stateChange: ([BluetoothDeviceWrapper]) -> Void
     
-    init(stateChange: @escaping ([ConnectionWrapper]) -> Void) {
+    init(stateChange: @escaping ([BluetoothDeviceWrapper]) -> Void) {
         self.stateChange = stateChange
     }
     
-    func addConnection(_ connectionWrapper: ConnectionWrapper) {
-        let identifier = connectionWrapper.peripheral.identifier
+    func addDevice(_ deviceWrapper: BluetoothDeviceWrapper) {
+        let identifier = deviceWrapper.peripheral.identifier
         
-        if connections[identifier] == nil {
-            print("Adding new connection to storage for peripheral: \(identifier)")
-            connections[identifier] = connectionWrapper
+        if devices[identifier] == nil {
+            print("Adding new device to ble storage for peripheral: \(identifier)")
+            devices[identifier] = deviceWrapper
             performStateChange()
         } else {
-            print("Connection storage for peripheral \(identifier) already exists.")
+            print("Ble storage for peripheral \(identifier) already exists.")
         }
     }
     
-    func getConnection(for device: CBPeripheral) -> ConnectionWrapper? {
-        return connections[device.identifier]
+    func getDevice(for device: CBPeripheral) -> BluetoothDeviceWrapper? {
+        return devices[device.identifier]
     }
     
-    func removeConnection(for device: CBPeripheral) {
-        connections.removeValue(forKey: device.identifier)
+    func removeDevice(for device: CBPeripheral) {
+        devices.removeValue(forKey: device.identifier)
         performStateChange()
     }
     
-    func getAllConnections() -> [ConnectionWrapper] {
-        return Array(connections.values)
+    func getAllDevices() -> [BluetoothDeviceWrapper] {
+        return Array(devices.values)
     }
     
-    func clearAllConnections() {
-        connections.removeAll()
+    func clearAllDevices() {
+        devices.removeAll()
         stateChange([])
     }
     
-    func getConnectionBySensorType(_ sensorType: SensorType) -> ConnectionWrapper? {
-        return getAllConnections().first(where: { $0.sensorType == sensorType })
+    func getDeviceBySensorType(_ sensorType: SensorType) -> BluetoothDeviceWrapper? {
+        return getAllDevices().first(where: { $0.sensorType == sensorType })
     }
     
     func updateConnectedState(for device: CBPeripheral, isConnected: Bool) {
-        connections[device.identifier]?.isConnected = isConnected
+        devices[device.identifier]?.isConnected = isConnected
         performStateChange()
     }
     
     func updateAutoConnectState(for device: CBPeripheral, isAutoConnect: Bool) {
-        connections[device.identifier]?.isAutoConnect = isAutoConnect
+        devices[device.identifier]?.isAutoConnect = isAutoConnect
         performStateChange()
     }
     
     func updateServices(services: [CBService], for device: CBPeripheral) {
-        connections[device.identifier]?.services = services
+        devices[device.identifier]?.services = services
         performStateChange()
     }
     
-    func updateCharacteristics(characteristics: [CBCharacteristic], for device: CBPeripheral) {
-        connections[device.identifier]?.characteristics = characteristics
-        performStateChange()
+    func updateCharacteristics(service: CBService ,characteristics: [CBCharacteristic], for device: CBPeripheral) {
+        if let deviceWrapper = devices[device.identifier] {
+            deviceWrapper.serviceCharacteristics[service.uuid] = characteristics
+            performStateChange()
+        } else {
+            print("Error: Could not find device with identifier \(device.identifier) to update.")
+        }
     }
     
     func getSensorType(for device: CBPeripheral) -> SensorType {
-        return connections[device.identifier]?.sensorType ?? .unknown
+        return devices[device.identifier]?.sensorType ?? .unknown
+    }
+    
+    func clearScannedDevices() {
+        devices = devices.filter { $0.value.isConnected }
+        stateChange(Array(devices.values))
     }
     
     func performStateChange() {
-        stateChange(getAllConnections())
+        stateChange(getAllDevices())
     }
 }

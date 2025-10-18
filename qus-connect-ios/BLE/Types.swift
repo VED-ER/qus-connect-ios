@@ -11,28 +11,18 @@ class BluetoothDeviceWrapper {
     let peripheral: CBPeripheral
     let sensorType: SensorType
     let RSSI: NSNumber
+    var isConnected: Bool
+    var services: [CBService]
+    var serviceCharacteristics: [CBUUID : [CBCharacteristic]]
+    var isAutoConnect: Bool
     
-    init(peripheral: CBPeripheral, sensorType: SensorType = .unknown, RSSI: NSNumber){
+    init(peripheral: CBPeripheral, sensorType: SensorType, RSSI: NSNumber, isConnected: Bool = false, serviceCharacteristics: [CBUUID:[CBCharacteristic]] = [:], services: [CBService] = [], isAutoConnect: Bool = false){
         self.peripheral = peripheral
         self.sensorType = sensorType
         self.RSSI = RSSI
-    }
-}
-
-class ConnectionStorage {
-    let peripheral: CBPeripheral
-    let sensorType: SensorType
-    var isConnected: Bool
-    var services: [CBService]
-    var characteristics: [CBCharacteristic]
-    var isAutoConnect: Bool
-    
-    init(peripheral: CBPeripheral, sensorType: SensorType, isConnected: Bool = false, characteristics: [CBCharacteristic] = [], services: [CBService] = [], isAutoConnect: Bool = false){
-        self.peripheral = peripheral
-        self.sensorType = sensorType
         self.isConnected = isConnected
         self.services = services
-        self.characteristics = characteristics
+        self.serviceCharacteristics = serviceCharacteristics
         self.isAutoConnect = isAutoConnect
     }
 }
