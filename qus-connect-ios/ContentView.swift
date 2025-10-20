@@ -34,7 +34,8 @@ struct ContentView: View {
                         },
                         stopTxNotifications: {
                             bleManager.stopDeviceNotifications(for: connectedOBU.peripheral)
-                        }
+                        },
+                        trackpoint: bleManager.trackpoint
                     )
                 } else {
                     List(bleManager.scannedDevices, id: \.peripheral.identifier.uuidString) { device in

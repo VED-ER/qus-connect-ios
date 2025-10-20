@@ -65,7 +65,7 @@ enum SensorType {
         //static let SERVICE_BATTERY_POWER_STATE_ID = CBUUID(string:"2A1A") // Battery Power State Characteristic UUID
         //static let SERVICE_BATTERY_LEVEL_STATE_ID = CBUUID(string:"2A1B") // Battery Level State Characteristic UUID
 
-        enum Commands125: Int8 {
+        enum COMMANDS125: UInt8 {
             case SUFFIX_START_SESSION = 0x01
             case SUFFIX_STOP_SESSION = 0x02
             case SUFFIX_PAUSE_SESSION = 0x03
@@ -76,7 +76,7 @@ enum SensorType {
             case SUFFIX_SET_SLEEP_MODE = 0x08
         }
         
-        enum Commands120: Int8 {
+        enum COMMANDS120: UInt8 {
             case SUFFIX_MODE_RUNNING = 0x00
             case SUFFIX_MODE_CYCLING = 0x01
             case SUFFIX_MODE_SWIMMING = 0x02

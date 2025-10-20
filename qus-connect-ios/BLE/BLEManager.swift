@@ -17,6 +17,13 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     @Published var isBluetoothOn = false
     @Published var isScanning = false
     
+    var obuTraceData: OBUTrace = OBUTrace()
+    var obuUUIDData: OBUPage_124?
+    var obuInfoData: OBUPage_127?
+    
+    @Published var trackpoint: Trackpoint = Trackpoint()
+
+    
     lazy var bleStorage = BLEStorage(stateChange: { [weak self] devices in
         guard let self = self else { return }
         
@@ -158,7 +165,38 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
         guard let data = characteristic.value else { return }
         
-        print("Received value for characteristic \(characteristic.uuid): \(data)")
+        let receivedSensorType = bleStorage.getSensorType(for: peripheral)
+        
+        if (receivedSensorType == .obu) {
+            switch characteristic.uuid {
+            case SensorType.OBU.SERVICE_NUS_TX_ID:
+                let page = OBUIntegrationService.txNotificationListener(from: data)
+                
+                switch page.pageId {
+                case 1:
+                    // Page 1 - Session Basics
+                    obuTraceData = obuTraceData.updating(with: page as! OBUPage_1)
+                case 2:
+                    obuTraceData = obuTraceData.updating(with: page as! OBUPage_2)
+                case 3:
+                    obuTraceData = obuTraceData.updating(with: page as! OBUPage_3)
+                case 24:
+                    // Page 24 - GNSS Data
+                    obuTraceData = obuTraceData.updating(with: page as! OBUPage_24)
+                    
+                    trackpoint = trackpoint.updating(with: obuTraceData)
+                case 124:
+                    obuUUIDData = page as! OBUPage_124
+                case 127:
+                    obuInfoData = page as! OBUPage_127
+                default:
+                    break
+                }
+            
+            default:
+                print("Should never be reached")
+            }
+        }
     }
     
     func startDeviceNotifications(for device: CBPeripheral) {
