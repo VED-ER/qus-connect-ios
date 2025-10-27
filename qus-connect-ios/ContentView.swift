@@ -12,6 +12,8 @@ import CoreBluetooth
 struct ContentView: View {
     @StateObject private var bleManager = BLEManager()
     
+    @State private var trackpoints: [Trackpoint] = []
+    
     private var connectedOBU: BluetoothDeviceWrapper? {
         bleManager.connectedDevices.first(where: { $0.sensorType == .obu })
     }
@@ -35,7 +37,7 @@ struct ContentView: View {
                         stopTxNotifications: {
                             bleManager.stopDeviceNotifications(for: connectedOBU.peripheral)
                         },
-                        trackpoint: bleManager.trackpoint
+                        trackpoints: trackpoints
                     )
                 } else {
                     List(bleManager.scannedDevices, id: \.peripheral.identifier.uuidString) { device in
@@ -65,18 +67,29 @@ struct ContentView: View {
                 ToolbarItem(placement: .topBarLeading) {
                     Text(bleManager.isBluetoothOn ? "Bluetooth is ON" : "Bluetooth is OFF")
                 }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button(bleManager.isScanning ? "Scanning..." : "Scan") {
-                        if bleManager.isScanning {
-                            bleManager.stopScanning()
-                        } else {
-                            bleManager.startScanning()
+                if connectedOBU == nil {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button(bleManager.isScanning ? "Scanning..." : "Scan") {
+                            if bleManager.isScanning {
+                                bleManager.stopScanning()
+                            } else {
+                                bleManager.startScanning()
+                            }
                         }
+                        .disabled(!bleManager.isBluetoothOn)
                     }
-                    .disabled(!bleManager.isBluetoothOn)
                 }
             }
         }
+        .onReceive(bleManager.$trackpoint) { newTrackpoint in
+            trackpoints.append(newTrackpoint)
+        }
+        .onReceive(bleManager.$connectedDevices, perform: {(connectedDevices: [BluetoothDeviceWrapper]) -> Void in
+            if connectedDevices.count == 0 {
+                trackpoints.removeAll()
+            }
+        }
+        )
     }
 }
 
