@@ -246,4 +246,12 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         }
     }
     
+    func writeCharacteristic(for device: BluetoothDeviceWrapper, serviceUUID: CBUUID, characteristicUUID: CBUUID, value: Data, writeType: CBCharacteristicWriteType ) {
+        guard let characteristic = device.peripheral.services?.first(where: { $0.uuid == serviceUUID })?.characteristics?.first(where: { $0.uuid == characteristicUUID }) else {
+            print("Characteristic not found")
+            return
+        }
+
+        device.peripheral.writeValue(value, for: characteristic, type: writeType)
+    }
 }

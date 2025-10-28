@@ -63,7 +63,7 @@ enum OBUIntegrationService {
         return Data(OBUPage_124.PREFIX)
     }
 
-    static func getOBUCommand_125_Bytes(mode: SensorType.OBU.COMMANDS125) -> Data {
+    static func getOBUCommand_125_Bytes(_ mode: SensorType.OBU.COMMANDS125) -> Data {
         return Data(OBUPage_125.PREFIX) + Data([mode.rawValue])
     }
 

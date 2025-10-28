@@ -12,6 +12,11 @@ struct DeviceDetailView: View {
     let disconnectAction: () -> Void
     let startTxNotifications: () -> Void
     let stopTxNotifications: () -> Void
+    let startSession: (_ deviceId: String) -> Void
+    let startSessionWithoutGNSS: (_ deviceId: String) -> Void
+    let pauseSession: (_ deviceId: String) -> Void
+    let resumeSession: (_ deviceId: String) -> Void
+    let stopSession: (_ deviceId: String) -> Void
     let trackpoints: [Trackpoint]
     
     var latestTrackpoint: Trackpoint? {
@@ -121,7 +126,7 @@ struct DeviceDetailView: View {
                     MetricDisplayView(
                         title: "Temperature",
                         metric1Title: "Core",
-                        metric1Value: latestTempCore.map {String(format: "%.1f", $0) } ?? "-",
+                        metric1Value: latestTempCore.map {String(format: "%.1f", $0) } ?? "--",
                         metric1Average: coreTempAverage == 0.0 ? "--" : String(format: "%.1f", coreTempAverage),
                         metric1Color: .orange,
                         metric2Title: "Skin",
@@ -147,6 +152,28 @@ struct DeviceDetailView: View {
                     }
                     .buttonStyle(.bordered)
                     .tint(.yellow)
+                    
+                    Text("Session commands").font(.headline)
+                    
+                    Button("Start session") {
+                        startSession(peripheralUUID)
+                    }
+                    
+                    Button("Start session without GNSS") {
+                        startSessionWithoutGNSS(peripheralUUID)
+                    }
+                    
+                    Button("Pause session") {
+                        pauseSession(peripheralUUID)
+                    }
+                    
+                    Button("Resume session") {
+                        resumeSession(peripheralUUID)
+                    }
+                    
+                    Button("Stop session") {
+                        stopSession(peripheralUUID)
+                    }
                     
                     Button("Disconnect") {
                         disconnectAction()
