@@ -109,24 +109,24 @@ struct DeviceDetailView: View {
                     MetricDisplayView(
                         title: "Vital Data",
                         metric1Title: "HR",
-                        metric1Value: latestHrVal == nil ? "-" : "\(latestHrVal!)",
-                        metric1Average: String(format: "%.1f", hrAverage),
+                        metric1Value: latestHrVal.map { String($0) } ?? "--",
+                        metric1Average: hrAverage == 0.0 ? "--" : String(format: "%.1f", hrAverage),
                         metric1Color: .red,
                         metric2Title: "RR",
-                        metric2Value: latestRrVal == nil ? "-" : "\(latestRrVal!)",
-                        metric2Average: String(format: "%.1f", rrAverage),
+                        metric2Value: latestRrVal.map { String($0) } ?? "--",
+                        metric2Average: rrAverage == 0.0 ? "--" : String(format: "%.1f", rrAverage),
                         metric2Color: .blue,
                     )
                     
                     MetricDisplayView(
                         title: "Temperature",
                         metric1Title: "Core",
-                        metric1Value: String(format: "%.1f", latestTempCore ?? "-"),
-                        metric1Average: String(format: "%.1f", coreTempAverage),
+                        metric1Value: latestTempCore.map {String(format: "%.1f", $0) } ?? "-",
+                        metric1Average: coreTempAverage == 0.0 ? "--" : String(format: "%.1f", coreTempAverage),
                         metric1Color: .orange,
                         metric2Title: "Skin",
-                        metric2Value: String(format: "%.1f", latestTempSkin ?? "-"),
-                        metric2Average: String(format: "%.1f", skinTempAverage),
+                        metric2Value: latestTempSkin.map { String(format: "%.1f", $0) } ?? "--",
+                        metric2Average: skinTempAverage == 0.0 ? "--" : String(format: "%.1f", skinTempAverage),
                         metric2Color: .green,
                     )
                     
@@ -234,19 +234,26 @@ struct VitalDataChart: View {
     var combinedData: [VitalChartData] { hrData + rrData }
     
     var body: some View {
-        Chart(combinedData) { item in
-            LineMark(
-                x: .value("Time", item.timestamp),
-                y: .value("Value", item.value)
-            )
-            .foregroundStyle(by: .value("Type", item.type))
+        VStack(alignment: .center, spacing: 8) {
+            Text("Vital (Heart & Respiration Rate)")
+                .font(.headline)
+                .padding(.horizontal)
+                .padding(.bottom, 10)
+            
+            Chart(combinedData) { item in
+                LineMark(
+                    x: .value("Time", item.timestamp),
+                    y: .value("Value", item.value)
+                )
+                .foregroundStyle(by: .value("Type", item.type))
+            }
+            .chartForegroundStyleScale([
+                "Heart rate": .red,
+                "Respiratory rate": .blue,
+            ])
+            .chartLegend(.visible)
+            .frame(height: 220)
         }
-        .chartForegroundStyleScale([
-            "Heart rate": .red,
-            "Respiratory rate": .blue,
-        ])
-        .chartLegend(.visible)
-        .frame(height: 220)
     }
 }
 
@@ -264,19 +271,26 @@ struct TempDataChart: View {
     var combinedData: [TempChartData] { skinData + coreData }
     
     var body: some View {
-        Chart(combinedData) { item in
-            LineMark(
-                x: .value("Time", item.timestamp),
-                y: .value("Value", item.value)
-            )
-            .foregroundStyle(by: .value("Type", item.type))
+        VStack(alignment: .center, spacing: 8) {
+            Text("Temperature (Skin & Core)")
+                .font(.headline)
+                .padding(.horizontal)
+                .padding(.bottom, 10)
+            
+            Chart(combinedData) { item in
+                LineMark(
+                    x: .value("Time", item.timestamp),
+                    y: .value("Value", item.value)
+                )
+                .foregroundStyle(by: .value("Type", item.type))
+            }
+            .chartForegroundStyleScale([
+                "Skin temperature": .yellow,
+                "Core temperature": .green
+            ])
+            .chartLegend(.visible)
+            .frame(height: 220)
+            .chartYScale(domain: 0...100)
         }
-        .chartForegroundStyleScale([
-            "Skin temperature": .yellow,
-            "Core temperature": .green
-        ])
-        .chartLegend(.visible)
-        .frame(height: 220)
-        .chartYScale(domain: 0...100)
     }
 }
