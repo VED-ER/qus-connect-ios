@@ -5,6 +5,7 @@
 //  Created by Vedran Erak on 15. 10. 2025..
 //
 import SwiftUI
+import Charts
 
 struct DeviceDetailView: View {
     let peripheralUUID: String
@@ -61,6 +62,34 @@ struct DeviceDetailView: View {
         return skinTempValuesTotal / Double(skinTempValues.count)
     }
     
+    var hrChartData: [VitalChartData] {
+        trackpoints.compactMap { tp in
+            guard let timestamp = tp.timestamp else { return nil }
+            return VitalChartData(type: "Heart rate", value: tp.hrVal ?? 0, timestamp: timestamp)
+        }
+    }
+    
+    var rrChartData: [VitalChartData] {
+        trackpoints.compactMap { tp in
+            guard let timestamp = tp.timestamp else { return nil }
+            return VitalChartData(type: "Respiratory rate", value: tp.rrVal ?? 0, timestamp: timestamp)
+        }
+    }
+    
+    var skinTempChartData: [TempChartData] {
+        trackpoints.compactMap { tp in
+            guard let timestamp = tp.timestamp else { return nil }
+            return TempChartData(type: "Skin temperature", value: tp.tempSkin ?? 0, timestamp: timestamp)
+        }
+    }
+    
+    var coreTempChartData: [TempChartData] {
+        trackpoints.compactMap { tp in
+            guard let timestamp = tp.timestamp else { return nil }
+            return TempChartData(type: "Core temperature", value: tp.tempCore ?? 0, timestamp: timestamp)
+        }
+    }
+    
     var body: some View {
         ScrollView {
             VStack(spacing: 25) {
@@ -100,6 +129,9 @@ struct DeviceDetailView: View {
                         metric2Average: String(format: "%.1f", skinTempAverage),
                         metric2Color: .green,
                     )
+                    
+                    VitalDataChart(hrData: hrChartData, rrData: rrChartData)
+                    TempDataChart(skinData: skinTempChartData, coreData: coreTempChartData)
                 }
                 
                 // --- Control Buttons ---
@@ -182,8 +214,69 @@ struct MetricBlock: View {
                 .foregroundColor(.white)
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
-                
+            
         }
         .frame(maxWidth: .infinity, alignment: .center)
+    }
+}
+
+struct VitalChartData: Identifiable {
+    var id = UUID()
+    var type: String
+    var value: Int
+    var timestamp: Date
+}
+
+struct VitalDataChart: View {
+    let hrData: [VitalChartData]
+    let rrData: [VitalChartData]
+    
+    var combinedData: [VitalChartData] { hrData + rrData }
+    
+    var body: some View {
+        Chart(combinedData) { item in
+            LineMark(
+                x: .value("Time", item.timestamp),
+                y: .value("Value", item.value)
+            )
+            .foregroundStyle(by: .value("Type", item.type))
+        }
+        .chartForegroundStyleScale([
+            "Heart rate": .red,
+            "Respiratory rate": .blue,
+        ])
+        .chartLegend(.visible)
+        .frame(height: 220)
+    }
+}
+
+struct TempChartData: Identifiable {
+    var id = UUID()
+    var type: String
+    var value: Double
+    var timestamp: Date
+}
+
+struct TempDataChart: View {
+    let skinData: [TempChartData]
+    let coreData: [TempChartData]
+    
+    var combinedData: [TempChartData] { skinData + coreData }
+    
+    var body: some View {
+        Chart(combinedData) { item in
+            LineMark(
+                x: .value("Time", item.timestamp),
+                y: .value("Value", item.value)
+            )
+            .foregroundStyle(by: .value("Type", item.type))
+        }
+        .chartForegroundStyleScale([
+            "Skin temperature": .yellow,
+            "Core temperature": .green
+        ])
+        .chartLegend(.visible)
+        .frame(height: 220)
+        .chartYScale(domain: 0...100)
     }
 }

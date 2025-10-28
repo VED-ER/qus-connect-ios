@@ -98,3 +98,14 @@ struct Trackpoint: Codable {
         ]
     }
 }
+
+struct LiveSessionMonitoringData: Codable {
+    var timestamp: Date? = nil
+    var hr_value: Int? = nil
+    var hr_rr: Int? = nil
+    var hr_valid: Bool? = nil
+    var rr_value: Int? = nil
+    var rr_valid: Bool? = nil
+    var temp_skin: Double? = nil
+    var temp_core: Double? = nil
+}

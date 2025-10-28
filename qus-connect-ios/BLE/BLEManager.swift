@@ -22,7 +22,6 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     var obuInfoData: OBUPage_127?
     
     @Published var trackpoint: Trackpoint = Trackpoint()
-
     
     lazy var bleStorage = BLEStorage(stateChange: { [weak self] devices in
         guard let self = self else { return }
