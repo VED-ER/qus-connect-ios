@@ -16,6 +16,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     @Published var connectedDevices = [BluetoothDeviceWrapper]()
     @Published var isBluetoothOn = false
     @Published var isScanning = false
+    @Published private(set) var stopwatchTime: Int = 0
     
     private let customQueue = DispatchQueue(label: "qus.connect.ios.ble.manager.queue")
     
@@ -24,6 +25,8 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     var obuInfoData: OBUPage_127?
     
     @Published var trackpoint: Trackpoint = Trackpoint()
+    
+    private let stopwatch = Stopwatch()
     
     lazy var bleStorage = BLEStorage(stateChange: { [weak self] devices in
         DispatchQueue.main.async {
@@ -41,9 +44,15 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     
     private var centralManager: CBCentralManager!
     
+    private var cancellables = Set<AnyCancellable>()
+    
     // MARK: - Initialization
     override init() {
         super.init()
+        stopwatch.$elapsedTime
+                .assign(to: \.stopwatchTime, on: self)
+                .store(in: &cancellables)
+                    
         // Initialize the central manager
         // TODO: Check background queue option, check third options argument
         self.centralManager = CBCentralManager(delegate: self, queue: customQueue, options: [
@@ -180,7 +189,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     }
     
     func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
-        print("IN", Date())
+//        print("IN", Date())
         guard let data = characteristic.value else { return }
         
         let receivedSensorType = bleStorage.getSensorType(for: peripheral)
@@ -280,5 +289,91 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
             
             device.peripheral.writeValue(value, for: characteristic, type: writeType)
         }
+    }
+    
+    // MARK: session controls
+    func startSession(deviceId: String) {
+        print("startSession called")
+        guard let device = connectedDevices.first(where: { $0.peripheral.identifier.uuidString == deviceId }) else {
+            return
+        }
+        
+        stopwatch.start()
+        
+        writeCharacteristic(
+            for: device,
+            serviceUUID: SensorType.OBU.SERVICE_NUS_SERVICE_ID,
+            characteristicUUID: SensorType.OBU.SERVICE_NUS_RX_ID,
+            value: OBUIntegrationService.getOBUCommand_125_Bytes(SensorType.OBU.COMMANDS125.SUFFIX_START_SESSION),
+            writeType: .withoutResponse
+        )
+    }
+    
+    func startSessionWithoutGNSS(deviceId: String) {
+        print("startSessionWithoutGNSS called")
+        guard let device = connectedDevices.first(where: { $0.peripheral.identifier.uuidString == deviceId }) else {
+            return
+        }
+        
+        stopwatch.start()
+        
+        writeCharacteristic(
+            for: device,
+            serviceUUID: SensorType.OBU.SERVICE_NUS_SERVICE_ID,
+            characteristicUUID: SensorType.OBU.SERVICE_NUS_RX_ID,
+            value: OBUIntegrationService.getOBUCommand_125_Bytes(SensorType.OBU.COMMANDS125.SUFFIX_START_SESSION_GNSS_DISABLED),
+            writeType: .withoutResponse
+        )
+    }
+    
+    func stopSession(deviceId: String) {
+        print("stopSession called")
+        guard let device = connectedDevices.first(where: { $0.peripheral.identifier.uuidString == deviceId }) else {
+            return
+        }
+        
+        stopwatch.stop()
+        
+        writeCharacteristic(
+            for: device,
+            serviceUUID: SensorType.OBU.SERVICE_NUS_SERVICE_ID,
+            characteristicUUID: SensorType.OBU.SERVICE_NUS_RX_ID,
+            value: OBUIntegrationService.getOBUCommand_125_Bytes(SensorType.OBU.COMMANDS125.SUFFIX_STOP_SESSION),
+            writeType: .withoutResponse
+        )
+    }
+    
+    func pauseSession(deviceId: String) {
+        print("pauseSession called")
+        guard let device = connectedDevices.first(where: { $0.peripheral.identifier.uuidString == deviceId }) else {
+            return
+        }
+        
+        stopwatch.pause()
+        
+        writeCharacteristic(
+            for: device,
+            serviceUUID: SensorType.OBU.SERVICE_NUS_SERVICE_ID,
+            characteristicUUID: SensorType.OBU.SERVICE_NUS_RX_ID,
+            value: OBUIntegrationService.getOBUCommand_125_Bytes(SensorType.OBU.COMMANDS125.SUFFIX_PAUSE_SESSION),
+            writeType: .withoutResponse
+        )
+    }
+    
+    func resumeSession(deviceId: String) {
+        print("resumeSession called")
+        guard let device = connectedDevices.first(where: { $0.peripheral.identifier.uuidString == deviceId }) else {
+            return
+        }
+        
+        stopwatch.resume()
+        
+        writeCharacteristic(
+            for: device,
+            serviceUUID: SensorType.OBU.SERVICE_NUS_SERVICE_ID,
+            characteristicUUID: SensorType.OBU.SERVICE_NUS_RX_ID,
+            value: OBUIntegrationService.getOBUCommand_125_Bytes(SensorType.OBU.COMMANDS125.SUFFIX_RESUME_SESSION),
+            writeType: .withoutResponse
+        )
     }
 }

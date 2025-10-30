@@ -18,6 +18,7 @@ struct DeviceDetailView: View {
     let resumeSession: (_ deviceId: String) -> Void
     let stopSession: (_ deviceId: String) -> Void
     let trackpoints: [Trackpoint]
+    let elapsedTime: Int?
     
     var latestTrackpoint: Trackpoint? {
         trackpoints.last
@@ -95,6 +96,24 @@ struct DeviceDetailView: View {
         }
     }
     
+    func formatElapsedTime(seconds: Int?) -> String {
+        guard let totalSeconds = seconds, totalSeconds > 0 else {
+            return "00"
+        }
+        
+        let hours = totalSeconds / 3600
+        let minutes = (totalSeconds % 3600) / 60
+        let remainingSeconds = totalSeconds % 60
+        
+        if hours > 0 {
+            return String(format: "%02d:%02d:%02d", hours, minutes, remainingSeconds)
+        } else if minutes > 0 {
+            return String(format: "%02d:%02d", minutes, remainingSeconds)
+        } else {
+            return String(format: "%02d", remainingSeconds)
+        }
+    }
+    
     var body: some View {
         ScrollView {
             VStack(spacing: 25) {
@@ -111,6 +130,11 @@ struct DeviceDetailView: View {
                         description: Text("Start TX notifications to see live data.")
                     )
                 } else {
+                    if let elapsedTime = elapsedTime {
+                        Text(formatElapsedTime(seconds: elapsedTime))
+                            .font(.system(size: 60, weight: .bold, design: .monospaced))
+                            .padding()
+                    }
                     MetricDisplayView(
                         title: "Vital Data",
                         metric1Title: "HR",
