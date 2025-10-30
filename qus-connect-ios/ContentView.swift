@@ -144,8 +144,16 @@ struct ContentView: View {
                 }
             }
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Text(bleManager.isBluetoothOn ? "Bluetooth is ON" : "Bluetooth is OFF")
+                if #available(iOS 26.0, *) {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Text(bleManager.isBluetoothOn ? "Bluetooth is ON" : "Bluetooth is OFF")
+                            .fixedSize()
+                        
+                    }.sharedBackgroundVisibility(.hidden)
+                } else {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Text(bleManager.isBluetoothOn ? "Bluetooth is ON" : "Bluetooth is OFF")
+                    }
                 }
                 if connectedOBU == nil {
                     ToolbarItem(placement: .topBarTrailing) {
