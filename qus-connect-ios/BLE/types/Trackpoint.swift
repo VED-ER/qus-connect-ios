@@ -34,7 +34,7 @@ struct Trackpoint: Codable {
     var explosiveDistance: Int? = nil
     var playerLoad: Double? = nil
     var accumulatedPlayerLoad: Int? = nil
-
+    
     /// Returns a new Trackpoint instance by merging data from an OBUTrace.
     func updating(with trace: OBUTrace) -> Trackpoint {
         var newTrackpoint = self // Create a copy of the current instance
@@ -62,27 +62,48 @@ struct Trackpoint: Codable {
         
         return newTrackpoint
     }
-
-//    func updating(with coreTrace: CORETrace) -> Trackpoint {
-//        var newTrackpoint = self
-//        
-//        newTrackpoint.tempSkin = coreTrace.tempSkin
-//        newTrackpoint.tempCore = coreTrace.tempCore
-//        newTrackpoint.tempQuality = coreTrace.dataQuality?.rawValue
-//        newTrackpoint.tempHrState = coreTrace.heartRateState?.rawValue
-//        
-//        return newTrackpoint
-//    }
     
-//    func toSupabaseTrackpoint(userId: String, sessionId: String) -> SupabaseTrackpoint {
-//        // In a real app, you would map all properties.
-//        return SupabaseTrackpoint(
-//            userId: userId,
-//            sessionId: sessionId,
-//            timestamp: Date() // Uses the current time, as in the Kotlin code
-//            // hrVal: hrVal, etc...
-//        )
-//    }
+    //    func updating(with coreTrace: CORETrace) -> Trackpoint {
+    //        var newTrackpoint = self
+    //
+    //        newTrackpoint.tempSkin = coreTrace.tempSkin
+    //        newTrackpoint.tempCore = coreTrace.tempCore
+    //        newTrackpoint.tempQuality = coreTrace.dataQuality?.rawValue
+    //        newTrackpoint.tempHrState = coreTrace.heartRateState?.rawValue
+    //
+    //        return newTrackpoint
+    //    }
+    
+    func toSupabaseTrackpoint(userId: String, sessionId: String) -> SupabaseTrackpoint {
+        return SupabaseTrackpoint(
+            userId: userId,
+            sessionId: sessionId,
+            timestamp: self.timestamp,
+            hrVal: self.hrVal,
+            hrRr: self.hrRr,
+            hrIsValid: self.hrIsValid,
+            rrVal: self.rrVal,
+            rrIsValid: self.rrIsValid,
+            tempSkin: self.tempSkin,
+            tempCore: self.tempCore,
+            tempQuality: self.tempQuality,
+            tempHrState: self.tempHrState,
+            altitude: self.altitude,
+            latitude: self.latitude,
+            longitude: self.longitude,
+            satellites: self.satellites,
+            speed: self.speed,
+            heading: self.heading,
+            hdop: self.hdop,
+            accX: self.accX,
+            accY: self.accY,
+            accZ: self.accZ,
+            distance: self.distance,
+            explosiveDistance: self.explosiveDistance,
+            playerLoad: self.playerLoad,
+            accumulatedPlayerLoad: self.accumulatedPlayerLoad
+        )
+    }
     
     /// Creates a dictionary payload for a JavaScript monitoring service.
     func toJSLiveSessionMonitoringPayload() -> [String: Any?] {

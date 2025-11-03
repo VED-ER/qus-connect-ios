@@ -17,8 +17,11 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     @Published var isBluetoothOn = false
     @Published var isScanning = false
     @Published private(set) var stopwatchTime: Int = 0
+    @Published var sessionId: UUID?
     
     private let customQueue = DispatchQueue(label: "qus.connect.ios.ble.manager.queue")
+    
+    private let userId = UUID()
     
     var obuTraceData: OBUTrace = OBUTrace()
     var obuUUIDData: OBUPage_124?
@@ -50,9 +53,9 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     override init() {
         super.init()
         stopwatch.$elapsedTime
-                .assign(to: \.stopwatchTime, on: self)
-                .store(in: &cancellables)
-                    
+            .assign(to: \.stopwatchTime, on: self)
+            .store(in: &cancellables)
+        
         // Initialize the central manager
         // TODO: Check background queue option, check third options argument
         self.centralManager = CBCentralManager(delegate: self, queue: customQueue, options: [
@@ -87,7 +90,9 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     
     func stopScanning() {
         print("Scanning stopped")
-        self.isScanning = false
+        DispatchQueue.main.async {
+            self.isScanning = false
+        }
         scanTimer?.invalidate()
         customQueue.async {
             self.centralManager.stopScan()
@@ -125,13 +130,13 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
                 print("Bluetooth is not available.")
             }
         }
-       
+        
     }
     
     func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral, advertisementData: [String: Any], rssi: NSNumber) {
         guard !scannedDevices.contains(where: { $0.peripheral.identifier == peripheral.identifier }) else { return }
         print("Discovered \(peripheral.name ?? "Unnamed device")")
-       
+        
         let scannedDeviceSensorType = getSensorTypeFromScanResult(for: peripheral, advertisementData: advertisementData)
         
         print("Discovered sensor type \(scannedDeviceSensorType)")
@@ -189,7 +194,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     }
     
     func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
-//        print("IN", Date())
+        //        print("IN", Date())
         guard let data = characteristic.value else { return }
         
         let receivedSensorType = bleStorage.getSensorType(for: peripheral)
@@ -211,8 +216,25 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
                     // Page 24 - GNSS Data
                     obuTraceData = obuTraceData.updating(with: page as! OBUPage_24)
                     
-                    DispatchQueue.main.async {
-                        self.trackpoint = self.trackpoint.updating(with: self.obuTraceData)
+                    let newTrackpoint = Trackpoint().updating(with: obuTraceData)
+
+                    print("newTrackpoint \(newTrackpoint.timestamp ?? Date()) - hrVal: \(newTrackpoint.hrVal ?? -1)")
+                    
+//                    DispatchQueue.main.async {
+//                        self.trackpoint = newTrackpoint
+//                    }
+                    if let sessionId = sessionId {
+                        Task {
+                            do {
+                                try await sendTrackpoint(newTrackpoint.toSupabaseTrackpoint(userId: userId.uuidString, sessionId: sessionId.uuidString))
+                            } catch {
+                                print("Failed to send trackpoint to server: \(error.localizedDescription)")
+                            }
+                        }
+                        
+//                        DispatchQueue.main.async {
+//                            self.trackpoint = newTrackpoint
+//                        }
                     }
                 case 124:
                     obuUUIDData = page as! OBUPage_124
@@ -221,7 +243,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
                 default:
                     break
                 }
-            
+                
             default:
                 print("Should never be reached")
             }
@@ -298,6 +320,8 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
             return
         }
         
+        sessionId = UUID()
+        
         stopwatch.start()
         
         writeCharacteristic(
@@ -315,6 +339,8 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
             return
         }
         
+        sessionId = UUID()
+        
         stopwatch.start()
         
         writeCharacteristic(
@@ -331,6 +357,8 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         guard let device = connectedDevices.first(where: { $0.peripheral.identifier.uuidString == deviceId }) else {
             return
         }
+        
+        sessionId = nil
         
         stopwatch.stop()
         
@@ -375,5 +403,44 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
             value: OBUIntegrationService.getOBUCommand_125_Bytes(SensorType.OBU.COMMANDS125.SUFFIX_RESUME_SESSION),
             writeType: .withoutResponse
         )
+    }
+    
+    func sendTrackpoint(_ trackpoint: SupabaseTrackpoint) async throws {
+        guard let url = URL(string: "https://mgilzviapldipuqsauly.supabase.co/rest/v1/trackpoints") else {
+            throw URLError(.badURL)
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        request.setValue("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1naWx6dmlhcGxkaXB1cXNhdWx5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE3NzI4NDcsImV4cCI6MjA3NzM0ODg0N30.M_jYjalYhx6NDZQZHKjjPFmv7vSRGtVdmjDeFWzK-og", forHTTPHeaderField: "apikey")
+        
+        // request.setValue("Bearer ", forHTTPHeaderField: "Authorization")
+        
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        
+        do {
+            let jsonData = try encoder.encode(trackpoint)
+            request.httpBody = jsonData
+        } catch {
+            print("Error encoding Trackpoint: \(error)")
+            throw error
+        }
+        
+        let (_, response) = try await URLSession.shared.data(for: request)
+
+        
+        guard let httpResponse = response as? HTTPURLResponse,
+              (200...299).contains(httpResponse.statusCode) else {
+            
+            // Handle server errors
+            let statusCode = (response as? HTTPURLResponse)?.statusCode ?? -1
+            print("Server responded with status code: \(statusCode)")
+            throw URLError(.badServerResponse)
+        }
+        
+        print("Successfully sent trackpoint. Server responded with \(httpResponse.statusCode)")
     }
 }
