@@ -12,8 +12,6 @@ import CoreBluetooth
 struct ContentView: View {
     @StateObject private var bleManager = BLEManager()
     
-    @State private var trackpoints: [Trackpoint] = []
-    
     private var connectedOBU: BluetoothDeviceWrapper? {
         bleManager.connectedDevices.first(where: { $0.sensorType == .obu })
     }
@@ -42,8 +40,16 @@ struct ContentView: View {
                         pauseSession: bleManager.pauseSession,
                         resumeSession: bleManager.resumeSession,
                         stopSession: bleManager.stopSession,
-                        trackpoints: trackpoints,
-                        elapsedTime: bleManager.stopwatchTime
+                        elapsedTime: bleManager.stopwatchTime,
+                        latestTrackpoint: bleManager.latestTrackpoint,
+                        hrAverage: bleManager.hrAverage,
+                        rrAverage: bleManager.rrAverage,
+                        coreTempAverage: bleManager.coreTempAverage,
+                        skinTempAverage: bleManager.skinTempAverage,
+                        hrChartData: bleManager.hrChartData,
+                        rrChartData: bleManager.rrChartData,
+                        skinTempChartData: bleManager.skinTempChartData,
+                        coreTempChartData: bleManager.coreTempChartData
                     )
                 } else {
                     List(bleManager.scannedDevices, id: \.peripheral.identifier.uuidString) { device in
@@ -95,17 +101,6 @@ struct ContentView: View {
                 }
             }
         }
-        .onReceive(bleManager.$trackpoint) { newTrackpoint in
-//            var currentTimestampTrackpoint = newTrackpoint
-//            currentTimestampTrackpoint.timestamp = Date()
-//            trackpoints.append(currentTimestampTrackpoint)
-        }
-        .onReceive(bleManager.$connectedDevices, perform: {(connectedDevices: [BluetoothDeviceWrapper]) -> Void in
-            if connectedDevices.count == 0 {
-                trackpoints.removeAll()
-            }
-        }
-        )
     }
 }
 

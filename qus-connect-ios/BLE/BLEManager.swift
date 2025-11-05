@@ -10,8 +10,6 @@ import CoreBluetooth
 import Combine
 
 class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeripheralDelegate {
-    
-    // MARK: - Published Properties
     @Published var scannedDevices = [BluetoothDeviceWrapper]()
     @Published var connectedDevices = [BluetoothDeviceWrapper]()
     @Published var isBluetoothOn = false
@@ -19,19 +17,46 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     @Published private(set) var stopwatchTime: Int = 0
     @Published var sessionId: UUID?
     
+    @Published var latestTrackpoint: Trackpoint?
+    @Published var hrAverage: Double = 0
+    @Published var rrAverage: Double = 0
+    @Published var coreTempAverage: Double = 0
+    @Published var skinTempAverage: Double = 0
+    
+    @Published var hrChartData: [VitalChartData] = []
+    @Published var rrChartData: [VitalChartData] = []
+    @Published var skinTempChartData: [TempChartData] = []
+    @Published var coreTempChartData: [TempChartData] = []
+    
+    private var hrTotal: Int = 0
+    private var hrCount: Int = 0
+    private var rrTotal: Int = 0
+    private var rrCount: Int = 0
+    private var coreTempTotal: Double = 0
+    private var coreTempCount: Int = 0
+    private var skinTempTotal: Double = 0
+    private var skinTempCount: Int = 0
+    
+    private var trackpoints: [Trackpoint] = []
+    
+    let mqttManager = MQTTManager()
+    
+    private let stopwatch = Stopwatch()
+    
     private let customQueue = DispatchQueue(label: "qus.connect.ios.ble.manager.queue")
     
     private let userId = UUID(uuidString: "6351ece5-c923-4591-8ce8-568b3d410636") // hardcoded for now
     
-    let mqttManager = MQTTManager()
+    private var scanTimer: Timer?
+    private let scanTimeout: TimeInterval = 5.0
     
-    var obuTraceData: OBUTrace = OBUTrace()
-    var obuUUIDData: OBUPage_124?
-    var obuInfoData: OBUPage_127?
+    private var centralManager: CBCentralManager!
     
-    @Published var trackpoint: Trackpoint = Trackpoint()
+    private var cancellables = Set<AnyCancellable>()
     
-    private let stopwatch = Stopwatch()
+    private var obuTraceData: OBUTrace = OBUTrace()
+    private var obuUUIDData: OBUPage_124?
+    private var obuInfoData: OBUPage_127?
     
     lazy var bleStorage = BLEStorage(stateChange: { [weak self] devices in
         DispatchQueue.main.async {
@@ -44,14 +69,6 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         }
     })
     
-    private var scanTimer: Timer?
-    private let scanTimeout: TimeInterval = 5.0
-    
-    private var centralManager: CBCentralManager!
-    
-    private var cancellables = Set<AnyCancellable>()
-    
-    // MARK: - Initialization
     override init() {
         super.init()
         stopwatch.$elapsedTime
@@ -124,6 +141,17 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
         let isBluetoothOn = central.state == .poweredOn
         
+        if let userId = userId {
+            customQueue.async {
+                self.mqttManager.connect(
+                    id: userId.uuidString,
+                    username: userId.uuidString,
+                    accessToken: "INVALID_FOR_TESTING",
+                    port: 1883
+                )
+            }
+        }
+        
         DispatchQueue.main.async {
             self.isBluetoothOn = isBluetoothOn
             if isBluetoothOn {
@@ -171,6 +199,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
         print("Disconnected from \(peripheral.identifier.uuidString)")
         bleStorage.updateConnectedState(for: peripheral, isConnected: false)
+        clearSessionState()
     }
     
     // MARK: - CBPeripheralDelegate Methods
@@ -226,10 +255,11 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
                         mqttManager.publishTrackpoint(
                             trackpoint: newTrackpoint.toSupabaseTrackpoint(userId: userId.uuidString, sessionId: sessionId.uuidString)
                         )
-                    
-                        DispatchQueue.main.async {
-                            self.trackpoint = newTrackpoint
-                        }
+                        
+                        onNewTrackpointReceived(newTrackpoint)
+//                        DispatchQueue.main.async {
+//                            self.latestTrackpoint = newTrackpoint
+//                        }
                     }
                 case 124:
                     obuUUIDData = page as! OBUPage_124
@@ -319,15 +349,6 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         
         stopwatch.start()
         
-        if let userId = userId {
-            mqttManager.connect(
-                id: userId.uuidString,
-                username: userId.uuidString,
-                accessToken: "INVALID_FOR_TESTING",
-                port: 1883
-            )
-        }
-        
         writeCharacteristic(
             for: device,
             serviceUUID: SensorType.OBU.SERVICE_NUS_SERVICE_ID,
@@ -365,6 +386,8 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         sessionId = nil
         
         stopwatch.stop()
+        
+        clearSessionState()
         
         writeCharacteristic(
             for: device,
@@ -409,4 +432,86 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         )
     }
     
+    private func onNewTrackpointReceived(_ trackpoint: Trackpoint) {
+        var newTrackpoint = trackpoint
+        newTrackpoint.timestamp = Date()
+        
+        trackpoints.append(newTrackpoint)
+        
+        // Update all published properties
+        DispatchQueue.main.async {
+            self.latestTrackpoint = newTrackpoint
+            self.updateAverages(with: newTrackpoint)
+            self.updateChartData(with: newTrackpoint)
+        }
+    }
+    
+    private func updateAverages(with tp: Trackpoint) {
+        if let hrVal = tp.hrVal {
+            hrTotal += hrVal
+            hrCount += 1
+            hrAverage = Double(hrTotal) / Double(hrCount)
+        }
+        if let rrVal = tp.rrVal {
+            rrTotal += rrVal
+            rrCount += 1
+            rrAverage = Double(rrTotal) / Double(rrCount)
+        }
+        if let coreTemp = tp.tempCore {
+            coreTempTotal += coreTemp
+            coreTempCount += 1
+            coreTempAverage = coreTempTotal / Double(coreTempCount)
+        }
+        if let skinTemp = tp.tempSkin {
+            skinTempTotal += skinTemp
+            skinTempCount += 1
+            skinTempAverage = skinTempTotal / Double(skinTempCount)
+        }
+    }
+    
+    private func updateChartData(with tp: Trackpoint) {
+        guard let timestamp = tp.timestamp else { return }
+        
+        if let hrVal = tp.hrVal {
+            hrChartData.append(VitalChartData(type: "Heart rate", value: hrVal, timestamp: timestamp))
+        }
+        if let rrVal = tp.rrVal {
+            rrChartData.append(VitalChartData(type: "Respiratory rate", value: rrVal, timestamp: timestamp))
+        }
+        if let coreTemp = tp.tempCore {
+            coreTempChartData.append(TempChartData(type: "Core temperature", value: coreTemp, timestamp: timestamp))
+        }
+        if let skinTemp = tp.tempSkin {
+            skinTempChartData.append(TempChartData(type: "Skin temperature", value: skinTemp, timestamp: timestamp))
+        }
+        
+        // keep only the last 1000 points
+        // if hrChartData.count > 1000 { hrChartData.removeFirst() }
+    }
+    
+    private func clearSessionState() {
+        DispatchQueue.main.async {
+            self.trackpoints.removeAll()
+            self.latestTrackpoint = nil
+            
+            self.hrAverage = 0
+            self.rrAverage = 0
+            self.coreTempAverage = 0
+            self.skinTempAverage = 0
+            
+            self.hrTotal = 0
+            self.hrCount = 0
+            self.rrTotal = 0
+            self.rrCount = 0
+            self.coreTempTotal = 0
+            self.coreTempCount = 0
+            self.skinTempTotal = 0
+            self.skinTempCount = 0
+            
+            self.hrChartData.removeAll()
+            self.rrChartData.removeAll()
+            self.skinTempChartData.removeAll()
+            self.coreTempChartData.removeAll()
+        }
+    }
 }

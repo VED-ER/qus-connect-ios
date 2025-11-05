@@ -17,12 +17,16 @@ struct DeviceDetailView: View {
     let pauseSession: (_ deviceId: String) -> Void
     let resumeSession: (_ deviceId: String) -> Void
     let stopSession: (_ deviceId: String) -> Void
-    let trackpoints: [Trackpoint]
     let elapsedTime: Int?
-    
-    var latestTrackpoint: Trackpoint? {
-        trackpoints.last
-    }
+    let latestTrackpoint: Trackpoint?
+    let hrAverage: Double
+    let rrAverage: Double
+    let coreTempAverage: Double
+    let skinTempAverage: Double
+    let hrChartData: [VitalChartData]
+    let rrChartData: [VitalChartData]
+    let skinTempChartData: [TempChartData]
+    let coreTempChartData: [TempChartData]
     
     var latestHrVal: Int? {
         latestTrackpoint?.hrVal
@@ -32,68 +36,12 @@ struct DeviceDetailView: View {
         latestTrackpoint?.rrVal
     }
     
-    var hrAverage: Double {
-        let hrValues = trackpoints.compactMap { $0.hrVal }
-        guard !hrValues.isEmpty else { return 0 }
-        let hrValuesTotal = hrValues.reduce(0, +)
-        return Double(hrValuesTotal / hrValues.count)
-    }
-    
-    var rrAverage: Double {
-        let rrValues = trackpoints.compactMap { $0.rrVal }
-        guard !rrValues.isEmpty else { return 0 }
-        let rrValuesTotal = rrValues.reduce(0, +)
-        return Double(rrValuesTotal / rrValues.count)
-    }
-    
     var latestTempCore: Double? {
         latestTrackpoint?.tempCore
     }
     
     var latestTempSkin: Double? {
         latestTrackpoint?.tempSkin
-    }
-    
-    var coreTempAverage: Double {
-        let coreTempValues = trackpoints.compactMap { $0.tempCore }
-        guard !coreTempValues.isEmpty else { return 0 }
-        let coreTempValuesTotal = coreTempValues.reduce(0, +)
-        return coreTempValuesTotal / Double(coreTempValues.count)
-    }
-    
-    var skinTempAverage: Double {
-        let skinTempValues = trackpoints.compactMap { $0.tempSkin }
-        guard !skinTempValues.isEmpty else { return 0 }
-        let skinTempValuesTotal = skinTempValues.reduce(0, +)
-        return skinTempValuesTotal / Double(skinTempValues.count)
-    }
-    
-    var hrChartData: [VitalChartData] {
-        trackpoints.compactMap { tp in
-            guard let timestamp = tp.timestamp else { return nil }
-            return VitalChartData(type: "Heart rate", value: tp.hrVal ?? 0, timestamp: timestamp)
-        }
-    }
-    
-    var rrChartData: [VitalChartData] {
-        trackpoints.compactMap { tp in
-            guard let timestamp = tp.timestamp else { return nil }
-            return VitalChartData(type: "Respiratory rate", value: tp.rrVal ?? 0, timestamp: timestamp)
-        }
-    }
-    
-    var skinTempChartData: [TempChartData] {
-        trackpoints.compactMap { tp in
-            guard let timestamp = tp.timestamp else { return nil }
-            return TempChartData(type: "Skin temperature", value: tp.tempSkin ?? 0, timestamp: timestamp)
-        }
-    }
-    
-    var coreTempChartData: [TempChartData] {
-        trackpoints.compactMap { tp in
-            guard let timestamp = tp.timestamp else { return nil }
-            return TempChartData(type: "Core temperature", value: tp.tempCore ?? 0, timestamp: timestamp)
-        }
     }
     
     func formatElapsedTime(seconds: Int?) -> String {
@@ -123,7 +71,7 @@ struct DeviceDetailView: View {
                     .padding(.top)
                 
                 // --- Check for data ---
-                if trackpoints.isEmpty {
+                if latestTrackpoint == nil {
                     ContentUnavailableView(
                         "No Data",
                         systemImage: "chart.bar.xaxis.ascending",
