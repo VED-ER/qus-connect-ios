@@ -21,7 +21,9 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     
     private let customQueue = DispatchQueue(label: "qus.connect.ios.ble.manager.queue")
     
-    private let userId = UUID()
+    private let userId = UUID(uuidString: "6351ece5-c923-4591-8ce8-568b3d410636") // hardcoded for now
+    
+    let mqttManager = MQTTManager()
     
     var obuTraceData: OBUTrace = OBUTrace()
     var obuUUIDData: OBUPage_124?
@@ -217,24 +219,17 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
                     obuTraceData = obuTraceData.updating(with: page as! OBUPage_24)
                     
                     let newTrackpoint = Trackpoint().updating(with: obuTraceData)
-
-                    print("newTrackpoint \(newTrackpoint.timestamp ?? Date()) - hrVal: \(newTrackpoint.hrVal ?? -1)")
                     
-//                    DispatchQueue.main.async {
-//                        self.trackpoint = newTrackpoint
-//                    }
-                    if let sessionId = sessionId {
-                        Task {
-                            do {
-                                try await sendTrackpoint(newTrackpoint.toSupabaseTrackpoint(userId: userId.uuidString, sessionId: sessionId.uuidString))
-                            } catch {
-                                print("Failed to send trackpoint to server: \(error.localizedDescription)")
-                            }
+                    print("newTrackpoint \(newTrackpoint)")
+                    
+                    if let sessionId = sessionId, let userId = userId {
+                        mqttManager.publishTrackpoint(
+                            trackpoint: newTrackpoint.toSupabaseTrackpoint(userId: userId.uuidString, sessionId: sessionId.uuidString)
+                        )
+                    
+                        DispatchQueue.main.async {
+                            self.trackpoint = newTrackpoint
                         }
-                        
-//                        DispatchQueue.main.async {
-//                            self.trackpoint = newTrackpoint
-//                        }
                     }
                 case 124:
                     obuUUIDData = page as! OBUPage_124
@@ -320,9 +315,18 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
             return
         }
         
-        sessionId = UUID()
+        sessionId = UUID(uuidString: "0155d543-c74c-414f-8795-8b33a495734f")
         
         stopwatch.start()
+        
+        if let userId = userId {
+            mqttManager.connect(
+                id: userId.uuidString,
+                username: userId.uuidString,
+                accessToken: "INVALID_FOR_TESTING",
+                port: 1883
+            )
+        }
         
         writeCharacteristic(
             for: device,
@@ -405,42 +409,4 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         )
     }
     
-    func sendTrackpoint(_ trackpoint: SupabaseTrackpoint) async throws {
-        guard let url = URL(string: "https://mgilzviapldipuqsauly.supabase.co/rest/v1/trackpoints") else {
-            throw URLError(.badURL)
-        }
-        
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        
-        request.setValue("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1naWx6dmlhcGxkaXB1cXNhdWx5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE3NzI4NDcsImV4cCI6MjA3NzM0ODg0N30.M_jYjalYhx6NDZQZHKjjPFmv7vSRGtVdmjDeFWzK-og", forHTTPHeaderField: "apikey")
-        
-        // request.setValue("Bearer ", forHTTPHeaderField: "Authorization")
-        
-        let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
-        
-        do {
-            let jsonData = try encoder.encode(trackpoint)
-            request.httpBody = jsonData
-        } catch {
-            print("Error encoding Trackpoint: \(error)")
-            throw error
-        }
-        
-        let (_, response) = try await URLSession.shared.data(for: request)
-
-        
-        guard let httpResponse = response as? HTTPURLResponse,
-              (200...299).contains(httpResponse.statusCode) else {
-            
-            // Handle server errors
-            let statusCode = (response as? HTTPURLResponse)?.statusCode ?? -1
-            print("Server responded with status code: \(statusCode)")
-            throw URLError(.badServerResponse)
-        }
-        
-        print("Successfully sent trackpoint. Server responded with \(httpResponse.statusCode)")
-    }
 }

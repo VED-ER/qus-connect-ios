@@ -96,9 +96,9 @@ struct ContentView: View {
             }
         }
         .onReceive(bleManager.$trackpoint) { newTrackpoint in
-            var currentTimestampTrackpoint = newTrackpoint
-            currentTimestampTrackpoint.timestamp = Date()
-            trackpoints.append(currentTimestampTrackpoint)
+//            var currentTimestampTrackpoint = newTrackpoint
+//            currentTimestampTrackpoint.timestamp = Date()
+//            trackpoints.append(currentTimestampTrackpoint)
         }
         .onReceive(bleManager.$connectedDevices, perform: {(connectedDevices: [BluetoothDeviceWrapper]) -> Void in
             if connectedDevices.count == 0 {

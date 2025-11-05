@@ -8,6 +8,8 @@
 
 /* Begin PBXBuildFile section */
 		0B75DD202EA0517F00EAEDA5 /* .gitignore in Resources */ = {isa = PBXBuildFile; fileRef = 0B75DD1E2EA0517800EAEDA5 /* .gitignore */; };
+		0BB8C7652EBA13E1007113A9 /* CocoaMQTT in Frameworks */ = {isa = PBXBuildFile; productRef = 0BB8C7642EBA13E1007113A9 /* CocoaMQTT */; };
+		0BB8C7672EBA13E1007113A9 /* CocoaMQTTWebSocket in Frameworks */ = {isa = PBXBuildFile; productRef = 0BB8C7662EBA13E1007113A9 /* CocoaMQTTWebSocket */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -41,6 +43,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				0BB8C7672EBA13E1007113A9 /* CocoaMQTTWebSocket in Frameworks */,
+				0BB8C7652EBA13E1007113A9 /* CocoaMQTT in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -84,6 +88,8 @@
 			);
 			name = "qus-connect-ios";
 			packageProductDependencies = (
+				0BB8C7642EBA13E1007113A9 /* CocoaMQTT */,
+				0BB8C7662EBA13E1007113A9 /* CocoaMQTTWebSocket */,
 			);
 			productName = "qus-connect-ios";
 			productReference = 0B75DD082EA04B6300EAEDA5 /* qus-connect-ios.app */;
@@ -113,6 +119,9 @@
 			);
 			mainGroup = 0B75DCFF2EA04B6300EAEDA5;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				0BB8C7632EBA13E1007113A9 /* XCRemoteSwiftPackageReference "CocoaMQTT" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 0B75DD092EA04B6300EAEDA5 /* Products */;
 			projectDirPath = "";
@@ -358,6 +367,30 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		0BB8C7632EBA13E1007113A9 /* XCRemoteSwiftPackageReference "CocoaMQTT" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/emqx/CocoaMQTT";
+			requirement = {
+				kind = exactVersion;
+				version = 2.0.9;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		0BB8C7642EBA13E1007113A9 /* CocoaMQTT */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 0BB8C7632EBA13E1007113A9 /* XCRemoteSwiftPackageReference "CocoaMQTT" */;
+			productName = CocoaMQTT;
+		};
+		0BB8C7662EBA13E1007113A9 /* CocoaMQTTWebSocket */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 0BB8C7632EBA13E1007113A9 /* XCRemoteSwiftPackageReference "CocoaMQTT" */;
+			productName = CocoaMQTTWebSocket;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 0B75DD002EA04B6300EAEDA5 /* Project object */;
 }
